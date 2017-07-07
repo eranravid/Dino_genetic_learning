@@ -2,6 +2,8 @@
 
 Enter your chrome browser and open the developersTool (F12).
 
+Go offline by navigating to the network tab and checking the offline box and then try navigating somewhere.
+
 Copy and Paste the content of codeInjector.js into the console.
 
 Wait for the dino to learn to play on it's own!
