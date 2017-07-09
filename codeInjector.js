@@ -673,6 +673,8 @@ var elements = div.childNodes;
 						}
 					}
 				}
+
+				drawMachineStats();
 			}
 
 			if (this.playing || (!this.activated &&
@@ -1373,6 +1375,7 @@ var elements = div.childNodes;
 
 				this.width = this.typeConfig.width * this.size;
 
+
 				// Check if obstacle can be positioned at various heights.
 				if (Array.isArray(this.typeConfig.yPos)) {
 					var yPosConfig = IS_MOBILE ? this.typeConfig.yPosMobile :
@@ -2071,6 +2074,8 @@ var elements = div.childNodes;
 			);
 
 			this.canvasCtx.restore();
+
+
 		},
 
 		/**
@@ -15833,6 +15838,8 @@ var elements = div.childNodes;
 		}
 	}
 
+	var bestFitnesses = 0;
+	var oldbestFitnesses = 0;
 	window.inGameDone = function inGameDone() {
 
 		robot.keyToggle('up', 'down');
@@ -15841,6 +15848,11 @@ var elements = div.childNodes;
 		GameManipulator.points = r.tRex.obstaclesJumped;
 		GameManipulator.onGameEnd && GameManipulator.onGameEnd(GameManipulator.points);
 		r.tRex.obstaclesJumped = 0;
+
+		if (bestFitnesses > oldbestFitnesses)
+			GameManipulator.saveBestGenome(true);
+
+		oldbestFitnesses = bestFitnesses;
 	}
 
 
@@ -15927,11 +15939,52 @@ var elements = div.childNodes;
 	GameManipulator.sensors[0] = {};
 	GameManipulator.readSensors = function() {
 		GameManipulator.sensors[0].value = r.horizon.obstacles[0] && (Math.abs(r.horizon.obstacles[0].xPos - r.tRex.xPos)) || 0;
-		GameManipulator.sensors[0].size = r.horizon.obstacles[0] && r.horizon.obstacles[0].size || 0;
+
+		// check if a bird
+		var type = 0;
+		if (r.horizon.obstacles[0]) {
+			if (r.horizon.obstacles[0].yPos === 105 || r.horizon.obstacles[0].yPos === 90) {
+				type = r.horizon.obstacles[0].size;
+			} else {
+				if (r.horizon.obstacles[0].yPos === 100) {
+					type = 4;
+				} else if (r.horizon.obstacles[0].yPos === 75) {
+					type = 5;
+				} else if (r.horizon.obstacles[0].yPos === 50) {
+					type = 6;
+				}
+			}
+		}
+		GameManipulator.sensors[0].size = type;
+
+
 		GameManipulator.sensors[0].speed = r.currentSpeed;
 
 		GameManipulator.onSensorData && GameManipulator.onSensorData();
 
+
+	}
+
+
+	function drawMachineStats() {
+		if (!r || !r.tRex || !r.tRex.canvasCtx) return;
+		var currFit = r.tRex.obstaclesJumped;
+		if (currFit > bestFitnesses) bestFitnesses = currFit;
+		var ctx = r.tRex.canvasCtx;
+		ctx.globalAlpha = 0.8;
+		ctx.font = '10pt Calibri';
+		ctx.fillStyle = 'grey';
+		ctx.fillText('Generation: ' + Learn.generation, 0, 20);
+		ctx.fillText('Genome: ' + Learn.genome, 0, 40);
+		ctx.fillText('Curr fitness: ' + currFit, 100, 20);
+		ctx.fillText('Best fitness: ' + bestFitnesses, 100, 40);
+		ctx.fillText('Distance: ' + String(GameManipulator.sensors[0].value).substring(0, 6), 200, 20);
+		ctx.fillText('Type: ' + String(GameManipulator.sensors[0].size).substring(0, 6), 200, 40);
+		ctx.fillText('Speed: ' + String(GameManipulator.sensors[0].speed).substring(0, 6), 200, 60);
+		ctx.fillText('Output: ' + String(GameManipulator.gameOutput).substring(0, 6), 300, 20);
+		ctx.fillText('Jump: output > 0.55', 300, 40);
+		ctx.fillText('Duck: output < 0.45', 300, 60);
+		ctx.globalAlpha = 1;
 	}
 
 
@@ -15962,26 +16015,25 @@ var elements = div.childNodes;
 			// DO Nothing
 			robot.keyToggle('up', RELEASE);
 			robot.keyToggle('down', RELEASE);
-		} else {
-
-			// Filter JUMP
-			if (GameManipulator.lastOutputSet != 'JUMP') {
-				GameManipulator.lastOutputSetTime = Date.now();
-			}
-
-			// JUMP
-			// Check if hasn't jump for more than 3 continuous secconds
-			if (Date.now() - GameManipulator.lastOutputSetTime < 3000) {
-				robot.keyToggle('up', PRESS);
-				robot.keyToggle('down', RELEASE);
-			} else {
-				robot.keyToggle('up', RELEASE);
-				robot.keyToggle('down', RELEASE);
-			}
-
+		} else if (GameManipulator.gameOutputString == 'JUMP') {
+			robot.keyToggle('up', PRESS);
+			robot.keyToggle('down', RELEASE);
 		}
 
+		// JUMP
+		// Check if hasn't jump for more than 3 continuous secconds
+		// if (Date.now() - GameManipulator.lastOutputSetTime < 3000) {
+		//   robot.keyToggle('up', PRESS);
+		//   robot.keyToggle('down', RELEASE);
+		// } else {
+		//   robot.keyToggle('up', RELEASE);
+		//   robot.keyToggle('down', RELEASE);
+		// }
+
+
+
 		GameManipulator.lastOutputSet = GameManipulator.gameOutputString;
+
 	}
 
 
@@ -16004,6 +16056,23 @@ var elements = div.childNodes;
 	GameManipulator.focusGame = function() {
 
 	}
+
+	var bestGenomesSave = [];
+	GameManipulator.saveBestGenome = function(dontlog) {
+		var bestGenomesSave = [];
+		for (var k in Learn.genomes) {
+			bestGenomesSave.push(Learn.genomes[k].toJSON());
+		}
+		bestGenomesSave = JSON.stringify(bestGenomesSave);
+		if (!dontlog)
+			console.log(bestGenomesSave);
+	}
+
+	GameManipulator.loadBestGenomes = function(genomes) {
+		Learn.loadGenomes(genomes, true);
+		Learn.executeGeneration();
+	}
+
 	GameManipulator.startProgram();
 
 })();
